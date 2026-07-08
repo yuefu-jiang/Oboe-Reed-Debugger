@@ -5,6 +5,7 @@
 <nav>
   <a href="/tuner" class:active={$page.url.pathname === '/tuner'}>Tuner</a>
   <a href="/analysis" class:active={$page.url.pathname === '/analysis'}>Reed Analysis</a>
+  <a href="/metronome" class:active={$page.url.pathname === '/metronome'}>Metronome</a>
   <a href="/guide" class:active={$page.url.pathname === '/guide'}>Guide</a>
 </nav>
 

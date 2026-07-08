@@ -8,10 +8,11 @@ A client-side web app that helps oboe players diagnose problems with American-sc
 
 A well-made reed crows as a stack of octaves of "C" (per standard reed-adjustment practice) plus a natural ladder of non-octave harmonics that give it a buzzy, reedy character. This app records that crow, figures out which C's and which harmonics are actually present, and cross-references the pattern against a symptom database to suggest likely causes and fixes — region-by-region (tip / heart / back / spine / rails / blend).
 
-Three views, tied together by a shared audio pipeline:
+Four views, tied together by a shared audio pipeline:
 
 - **Tuner** — real-time pitch readout (note + cents) and a live scrolling, log-frequency spectrogram (Merlin-style), 200Hz–5kHz.
 - **Reed Analysis** — record a crow, see a static spectrogram of it (hover to read off frequency at any point), and get a structured breakdown: which octaves of C are present, which non-octave harmonics are present, overall crow quality, and pitch stability — plus matched entries from the symptom guide.
+- **Metronome** — free-entry tempo (20–300 BPM) and a beats-per-measure dropdown, for practicing reed response and articulation against a steady click.
 - **Guide** — the full symptom database, browsable by category (crow / response / pitch / tone / endurance).
 
 ## Architecture
@@ -44,6 +45,7 @@ Mic ──▶ getUserMedia ──▶ AudioContext ──▶ AnalyserNode (fftSiz
 - **`src/lib/components/Spectrogram.svelte`** — renders the live/static spectrogram; scrolls by blitting the canvas one pixel left per frame.
 - **`src/lib/audio/recordingAnalyzer.ts`** — the core diagnostic engine (see Algorithms below); turns a recorded `AudioBuffer` into octave/harmonic presence data, pitch stability, and a verified fundamental.
 - **`src/lib/data/symptoms.ts`** — the symptom database; each entry has a description, likely causes by reed region, audio signatures, suggested fixes, and optional `matchConditions` used to auto-highlight it from a recording's analysis.
+- **`src/lib/audio/metronome.ts`** — a self-contained click engine, unrelated to the recording pipeline above; uses the standard Web Audio "lookahead" scheduling pattern (see Algorithms below) for drift-free timing.
 
 No backend, no database, no auth, no persistence. Deployed as a static site via `@sveltejs/adapter-static`.
 
@@ -60,6 +62,8 @@ No backend, no database, no auth, no persistence. Deployed as a static site via 
 **Crow quality classification** — from the octave/harmonic presence pattern: a single present octave reads as a monotone crow (heart over-scraped or bent cane); upper C's with nothing below the root reads as a missing lower octave (tends toward sharp, stuffy tone); three or more stacked octaves reads as a healthy, balanced crow. Pitch is judged in tune against the *nearest* C in any octave, not a fixed target — a crow rooted on C5 is just as "in tune" as one rooted on C6.
 
 **Log-scale spectrogram rendering** — frequency-to-pixel mapping is logarithmic (matching musical pitch perception, and how the reference Merlin tuner draws its spectrogram), so octave intervals occupy equal vertical space regardless of absolute frequency.
+
+**Metronome lookahead scheduling** — a naive `setInterval` click loop drifts, because JS timer callbacks aren't guaranteed to fire exactly on schedule. Instead, a `setTimeout` loop wakes up every 25ms just to *queue* upcoming clicks, but each click's actual play time is scheduled against the `AudioContext`'s own sample-accurate clock (`osc.start(time)`), which doesn't drift. The visual beat indicator is synced separately via a `setTimeout` computed from that same scheduled time — fine for a UI dot, since eyes are far less sensitive to a few ms of jitter than ears are for the click itself.
 
 ## Tech stack
 
