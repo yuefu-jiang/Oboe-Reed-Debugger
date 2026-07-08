@@ -1,10 +1,8 @@
 <script lang="ts">
   import type { Symptom } from '$lib/data/symptoms';
-  import type { ExperienceLevel } from '$lib/stores/experienceStore';
 
-  let { symptom, level = 'intermediate', highlighted = false }: {
+  let { symptom, highlighted = false }: {
     symptom: Symptom;
-    level?: ExperienceLevel;
     highlighted?: boolean;
   } = $props();
 
@@ -27,7 +25,7 @@
 
   {#if expanded}
     <div class="body">
-      <p class="description">{symptom.description[level]}</p>
+      <p class="description">{symptom.description}</p>
 
       <h4>Likely Causes</h4>
       <ul>
@@ -36,18 +34,16 @@
         {/each}
       </ul>
 
-      {#if level !== 'beginner'}
-        <h4>Audio Signatures</h4>
-        <ul>
-          {#each symptom.audioSignatures as sig}
-            <li><strong>{sig.indicator}</strong> — {sig.details}</li>
-          {/each}
-        </ul>
-      {/if}
+      <h4>Audio Signatures</h4>
+      <ul>
+        {#each symptom.audioSignatures as sig}
+          <li><strong>{sig.indicator}</strong> — {sig.details}</li>
+        {/each}
+      </ul>
 
       <h4>Suggested Fixes</h4>
       <ul>
-        {#each symptom.suggestedFixes.filter(f => f.level === level || (level === 'advanced' && f.level === 'intermediate')) as fix}
+        {#each symptom.suggestedFixes as fix}
           <li>{fix.action}</li>
         {/each}
       </ul>

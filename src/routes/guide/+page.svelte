@@ -1,7 +1,6 @@
 <script lang="ts">
   import { symptoms } from '$lib/data/symptoms';
   import SymptomCard from '$lib/components/SymptomCard.svelte';
-  import { experienceStore } from '$lib/stores/experienceStore';
   import { matchedSymptomsStore } from '$lib/stores/analysisStore';
 
   type Category = 'all' | 'crow' | 'response' | 'pitch' | 'tone' | 'endurance';
@@ -48,7 +47,6 @@
     {#each sorted as symptom (symptom.id)}
       <SymptomCard
         {symptom}
-        level={$experienceStore}
         highlighted={$matchedSymptomsStore.includes(symptom.id)}
       />
     {/each}

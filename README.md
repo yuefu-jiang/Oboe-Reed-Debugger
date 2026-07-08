@@ -11,8 +11,8 @@ A well-made reed crows as a stack of octaves of "C" (per standard reed-adjustmen
 Three views, tied together by a shared audio pipeline:
 
 - **Tuner** — real-time pitch readout (note + cents) and a live scrolling, log-frequency spectrogram (Merlin-style), 200Hz–5kHz.
-- **Recorder** — record a crow, see a static spectrogram of it (hover to read off frequency at any point), and get a structured breakdown: which octaves of C are present, which non-octave harmonics are present, overall crow quality, and pitch stability — plus matched entries from the symptom guide.
-- **Guide** — the full symptom database, browsable by category (crow / response / pitch / tone / endurance), with fixes gated by experience level (beginner / intermediate / advanced).
+- **Reed Analysis** — record a crow, see a static spectrogram of it (hover to read off frequency at any point), and get a structured breakdown: which octaves of C are present, which non-octave harmonics are present, overall crow quality, and pitch stability — plus matched entries from the symptom guide.
+- **Guide** — the full symptom database, browsable by category (crow / response / pitch / tone / endurance).
 
 ## Architecture
 
@@ -21,7 +21,7 @@ Mic ──▶ getUserMedia ──▶ AudioContext ──▶ AnalyserNode (fftSiz
                                               │
                               ┌───────────────┴───────────────┐
                               ▼                                ▼
-                   audioStore.ts (Svelte stores)      MediaRecorder (Recorder view)
+                   audioStore.ts (Svelte stores)      MediaRecorder (Reed Analysis view)
                    pitch / fft / level / sampleRate                │
                               │                                    ▼
                               ▼                          decodeAudioData → AudioBuffer
@@ -38,21 +38,20 @@ Mic ──▶ getUserMedia ──▶ AudioContext ──▶ AnalyserNode (fftSiz
 ```
 
 - **`src/lib/audio/audioContext.ts`** — owns the `AudioContext`/`AnalyserNode`, ticks on `requestAnimationFrame` (throttled ~30fps), hands time-domain + frequency-domain data and the real device sample rate up to the store.
-- **`src/lib/stores/audioStore.ts`** — Svelte stores (`pitchStore`, `fftStore`, `levelStore`, `sampleRateStore`) that the Tuner/Recorder views subscribe to.
+- **`src/lib/stores/audioStore.ts`** — Svelte stores (`pitchStore`, `fftStore`, `levelStore`, `sampleRateStore`) that the Tuner/Reed Analysis views subscribe to.
 - **`src/lib/audio/pitchDetector.ts`** — autocorrelation pitch detection (`detectPitch`) and note-naming (`frequencyToNote`, `nearestC`).
 - **`src/lib/audio/spectrogramEngine.ts`** — log-scale frequency↔pixel mapping (`freqToY`/`yToFreq`) and dB→color mapping for the Canvas 2D spectrogram.
 - **`src/lib/components/Spectrogram.svelte`** — renders the live/static spectrogram; scrolls by blitting the canvas one pixel left per frame.
 - **`src/lib/audio/recordingAnalyzer.ts`** — the core diagnostic engine (see Algorithms below); turns a recorded `AudioBuffer` into octave/harmonic presence data, pitch stability, and a verified fundamental.
-- **`src/lib/data/symptoms.ts`** — the symptom database; each entry has per-level descriptions, likely causes by reed region, audio signatures, suggested fixes, and optional `matchConditions` used to auto-highlight it from a recording's analysis.
-- **`src/lib/stores/experienceStore.ts`** — persists the beginner/intermediate/advanced toggle to `localStorage`.
+- **`src/lib/data/symptoms.ts`** — the symptom database; each entry has a description, likely causes by reed region, audio signatures, suggested fixes, and optional `matchConditions` used to auto-highlight it from a recording's analysis.
 
-No backend, no database, no auth, no persistence beyond the experience-level preference. Deployed as a static site via `@sveltejs/adapter-static`.
+No backend, no database, no auth, no persistence. Deployed as a static site via `@sveltejs/adapter-static`.
 
 ## Algorithms
 
-**Autocorrelation pitch detection** (`pitchDetector.ts`) — the standard "find the first strong repeat" approach: computes the autocorrelation of a time-domain buffer, skips the initial descent, finds the first valley, then the peak after it, and refines to sub-sample accuracy with parabolic interpolation. Used for the live Tuner and as the per-frame estimate feeding into the recorder's analysis.
+**Autocorrelation pitch detection** (`pitchDetector.ts`) — the standard "find the first strong repeat" approach: computes the autocorrelation of a time-domain buffer, skips the initial descent, finds the first valley, then the peak after it, and refines to sub-sample accuracy with parabolic interpolation. Used for the live Tuner and as the per-frame estimate feeding into the Reed Analysis view's processing.
 
-**Goertzel algorithm** (`recordingAnalyzer.ts`) — rather than running a full FFT, the recorder analysis computes signal power at specific target frequencies directly via the Goertzel algorithm. This is what makes the "narrow, targeted search near a known-good frequency" strategy below cheap enough to run many times per recording.
+**Goertzel algorithm** (`recordingAnalyzer.ts`) — rather than running a full FFT, the recording analysis computes signal power at specific target frequencies directly via the Goertzel algorithm. This is what makes the "narrow, targeted search near a known-good frequency" strategy below cheap enough to run many times per recording.
 
 **Harmonic-series fundamental estimation** — a rich, buzzy crow has many simultaneous partials, which can make a simple pitch detector lock onto *any* of them (not necessarily the true root, and the error can go either direction — a harmonic above or a sub-harmonic below). `estimateFundamental` corrects for this: it tests the raw per-frame pitch estimate along with simple multiples and divisions of it (1×–8× in both directions) against the observed spectrum, requires each candidate to have genuine energy *at its own frequency* (not just at a few of its harmonics — otherwise two unrelated real tones can share a spurious low common divisor), and picks whichever candidate is corroborated by the most real, matched harmonic energy.
 

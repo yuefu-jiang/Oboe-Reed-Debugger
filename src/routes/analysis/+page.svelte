@@ -51,7 +51,7 @@
   }
 </script>
 
-<div class="recorder">
+<div class="analysis-view">
   <p class="mic-note">Microphone access required. No audio leaves your device.</p>
   <p class="hint">Crow your reed or play a sustained note, then stop recording to see analysis.</p>
   <RecordButton onrecorded={handleRecorded} onstart={handleStart} onstop={handleStop} />
@@ -81,7 +81,7 @@
 </div>
 
 <style>
-  .recorder { display: flex; flex-direction: column; gap: 1.5rem; max-width: 680px; }
+  .analysis-view { display: flex; flex-direction: column; gap: 1.5rem; max-width: 680px; }
   .mic-note { color: #666; font-size: 0.85rem; }
   .hint { color: #888; font-size: 0.9rem; }
   .diagnose { padding: 0.6rem 1.2rem; background: #264653; border: none; color: #eee; border-radius: 4px; cursor: pointer; font-size: 1rem; width: fit-content; }
