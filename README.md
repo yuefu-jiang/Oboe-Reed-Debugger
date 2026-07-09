@@ -1,6 +1,6 @@
 # Oboe Reed Debugger
 
-Deployed at: https://d22cp4mfgru8r5.cloudfront.net
+Deployed at: https://oboe-reed-debug.yuefu.fyi/
 
 A client-side web app that helps oboe players diagnose problems with American-scrape reeds by analyzing the reed's **crow** — the raw sound it makes blown alone, without the instrument. All audio processing happens in the browser; no audio is ever uploaded anywhere.
 
