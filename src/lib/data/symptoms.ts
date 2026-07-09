@@ -25,7 +25,8 @@ export interface Symptom {
     sharpBeyondCents?: number;            // crow's nearest-C deviation is this many cents sharp or more
     stabilityBelow?: number;
     monotoneCrow?: boolean;               // true = only one octave of C present
-    missingLowerOctave?: boolean;         // true = upper C's present but nothing below the root
+    missingLowerOctave?: boolean;         // true = crow sits high (C7+), no C6 root — sharp/stuffy
+    missingUpperOctave?: boolean;         // true = rooted crow that doesn't reach the top C8
     completenessBelow?: number;           // harmonicCompleteness below this = thin, not buzzy
   };
 }
@@ -56,15 +57,15 @@ export const symptoms: Symptom[] = [
   {
     id: 'crow-missing-lower-octave',
     category: 'crow',
-    symptom: 'Crow is missing its lower octave of C',
-    description: 'Absence of the sub-octave partial points to insufficient back/blend thickness variation — the back is not providing enough mass to support the lower vibrational mode. Expect sharp tendencies and reduced tone core.',
+    symptom: 'Crow sits high — missing its lower octave of C',
+    description: 'The crow lands on the upper C\'s (C7 and above) with no C6 root beneath them. Absence of that lower octave points to insufficient back/blend thickness variation — the back is not providing enough mass to support the lower vibrational mode. Expect sharp tendencies and reduced tone core.',
     likelyCauses: [
       { region: 'back', issue: 'too thin or too uniform — not supporting the lower vibrational mode' },
       { region: 'blend', issue: 'too gradual — back-to-heart transition not differentiated enough' }
     ],
     audioSignatures: [
-      { indicator: 'No band below the root pitch', details: 'Spectrogram shows the crow\'s upper C bands but nothing an octave below the lowest one' },
-      { indicator: 'Fewer than 3 octaves present', details: 'Only the root and/or upper bands registered — no lower band' }
+      { indicator: 'No band at the root C6', details: 'Spectrogram shows the crow\'s upper C bands (C7/C8) but nothing at the C6 root beneath them' },
+      { indicator: 'Stack starts high', details: 'The lowest octave that registered is C7 or above' }
     ],
     suggestedFixes: [
       { action: 'Check the back of the reed (from the thread to the start of the heart) — it should have some thickness left, not be scraped thin.' },
@@ -74,24 +75,49 @@ export const symptoms: Symptom[] = [
     matchConditions: { missingLowerOctave: true }
   },
   {
+    id: 'crow-missing-upper-octave',
+    category: 'crow',
+    symptom: 'Crow is rooted but doesn\'t reach the top octave',
+    description: 'The crow has its C6 root (and usually C7) but never lights up the highest octave, C8. This is a mild sign — a solid two-octave crow — rather than a structural fault. It usually means the tip is a touch stiff or the scrape not quite bright enough to excite the very top of the register.',
+    likelyCauses: [
+      { region: 'tip', issue: 'slightly thick or stiff at the very edge — not free enough to reach the top octave' },
+      { region: 'heart', issue: 'a little heavy — damping the brightest, highest mode' }
+    ],
+    audioSignatures: [
+      { indicator: 'No band at the top C8', details: 'Spectrogram shows C6 and C7 but nothing up at C8 (~4.2kHz)' },
+      { indicator: 'Stack tops out early', details: 'The highest octave that registered is below C8' }
+    ],
+    suggestedFixes: [
+      { action: 'Take a few very light strokes across the last 2–3mm of the tip and re-crow — a freer tip usually brings in the top octave.' },
+      { action: 'This is often fine as-is: a clean, in-tune two-octave crow plays well. Only chase the top octave if the reed also feels stuffy or dark.' }
+    ],
+    matchConditions: { missingUpperOctave: true }
+  },
+  {
     id: 'crow-thin',
     category: 'crow',
     symptom: 'Crow has the right C\'s but sounds thin, not buzzy',
-    description: 'Harmonic completeness measures presence of the non-octave partials (3x, 5x, 6x, 7x the fundamental) independent of octave/pitch accuracy. Low completeness with correct C pitches suggests the blade is too damped or the aperture too small to sustain broadband vibration — a timbral issue, not a tuning one.',
+    description: 'Harmonic completeness measures presence of the full non-octave harmonic series between the C\'s (the buzz), independent of octave/pitch accuracy. Low completeness with correct C pitches suggests the blade is too damped or the aperture too small to sustain broadband vibration — a timbral issue, not a tuning one.',
     likelyCauses: [
       { region: 'tip', issue: 'opening too small — insufficient aperture to excite the full partial series' },
       { region: 'heart', issue: 'over-refined/too smooth — scrape too even to generate broadband buzz' }
     ],
     audioSignatures: [
       { indicator: 'Only clean bands at the C octaves', details: 'Spectrogram shows isolated thin lines at the octave positions with little energy in between' },
-      { indicator: 'Low harmonic completeness score', details: 'Few or none of the 3rd/5th/6th/7th partials present between the octaves' }
+      { indicator: 'Low harmonic completeness score', details: 'Few or none of the non-octave partials present between the octaves' }
     ],
     suggestedFixes: [
       { action: 'Check the tip opening — gently squeeze the sides near the thread; the tip should spring back to a visible gap, not sit nearly closed.' },
       { action: 'Try soaking longer or working the reed open with a plaque before crowing again — a dry or collapsed tip crows cleanly instead of buzzing.' },
       { action: 'Slightly increase the tip opening; a uniformly smooth scrape damps the broadband buzz needed for a fully rich crow.' }
     ],
-    matchConditions: { completenessBelow: 0.25 }
+    // completenessBelow is now measured against the FULL harmonic series
+    // (26 non-octave partials across C3..C8), not a fixed 4-partial set — a
+    // genuinely rich, healthy crow only lights up roughly a quarter to a
+    // third of that (the reference crow this app was tuned against scored
+    // ~0.31), since the densest bands (15 partials between C7 and C8) are
+    // never going to be fully lit even on a great reed. 0.12 marks "thin."
+    matchConditions: { completenessBelow: 0.12 }
   },
   {
     id: 'crow-flat',
