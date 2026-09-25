@@ -238,6 +238,36 @@ export function buildChromaticRange(lowMidi: number, highMidi: number): ScaleRun
   return { notes: [...up, ...down], turnaround: up.length - 1 };
 }
 
+/**
+ * Every note of a scale that falls between `lowMidi` and `highMidi`, up to
+ * the top and back down — so a run can start and end anywhere, not only on the
+ * tonic. The top of the run is the highest scale note in range; the ends are
+ * the lowest. Melodic minor keeps its two forms: raised 6th and 7th going up,
+ * natural coming down, with the peak taken from whichever form reaches higher.
+ */
+export function buildScaleInRange(
+  tonic: TonicSpelling, typeId: ScaleTypeId, lowMidi: number, highMidi: number
+): ScaleRun {
+  if (typeId === 'chromatic') return buildChromaticRange(lowMidi, highMidi);
+
+  // Spell from the last tonic at or below the range so every note in it is
+  // covered, then keep only what lies inside.
+  let root = lowestTonic(tonic, lowMidi);
+  if (toMidi(root) > lowMidi) root = { ...root, octave: root.octave - 1 };
+  const octaves = Math.max(1, Math.ceil((highMidi - toMidi(root)) / 12));
+  const type = scaleType(typeId);
+  const within = (p: Pitch) => toMidi(p) >= lowMidi && toMidi(p) <= highMidi;
+  const up = spell(root, runIntervals(type.up, octaves)).filter(within);
+  const down = spell(root, runIntervals(type.down, octaves)).filter(within);
+  if (up.length === 0 && down.length === 0) return { notes: [], turnaround: 0 };
+
+  const top = [...up, ...down].reduce((a, b) => (toMidi(b) > toMidi(a) ? b : a));
+  const topMidi = toMidi(top);
+  const ascent = [...up.filter((p) => toMidi(p) < topMidi), up.find((p) => toMidi(p) === topMidi) ?? top];
+  const descent = down.filter((p) => toMidi(p) < topMidi).reverse();
+  return { notes: [...ascent, ...descent], turnaround: ascent.length - 1 };
+}
+
 // --- Fitting a scale into the instrument's range -------------------------
 
 /**

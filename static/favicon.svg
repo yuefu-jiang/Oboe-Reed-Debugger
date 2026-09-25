@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Oboe Tool Kit</title>
+  <g transform="translate(32 32) rotate(45) scale(1.0)" stroke="#2B1F14" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M -4.4,8.5 L 4.4,8.5 L 5.6,27.2 C 5.6,29 -5.6,29 -5.6,27.2 Z" fill="#9A6A43"/>
+    <path d="M -3.6,10.2 L -2.2,10.2 L -2.8,26.8 L -4.5,26.5 Z" fill="#B7875B" stroke="none"/>
+    <path d="M -6.8,-28.6 C -2.7,-31 2.7,-31 6.8,-28.6 C 6.6,-20 5.8,-12 3.4,-3 L -3.4,-3 C -5.8,-12 -6.6,-20 -6.8,-28.6 Z" fill="#E0B45C"/>
+    <path d="M -6.1,-28.3 C -2.4,-30.4 2.4,-30.4 6.1,-28.3 C 6,-24 5.7,-20.5 5.3,-18.2 C 4.4,-12.8 -4.4,-12.8 -5.3,-18.2 C -5.7,-20.5 -6,-24 -6.1,-28.3 Z" fill="#F3DFA8" stroke="none"/>
+    <rect x="-3.9" y="-5" width="7.8" height="13.5" rx="1.6" fill="#2A9D8F"/>
+    <path d="M -3.9,-0.6 L 3.9,-2 M -3.9,3.2 L 3.9,1.8 M -3.9,7 L 3.9,5.6" fill="none" stroke="#1D6F65" stroke-width="0.8"/>
+  </g>
+</svg>

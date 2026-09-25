@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildScale, lowestTonic, maxOctaves, pitchName, pitchNameNoOctave, toDiatonic, toMidi,
   MAJOR_TONICS, MINOR_TONICS, tonicPitchClass, tonicLabel, isMinor, tonicsFor, spellChromatic,
-  SCALE_TYPES, KEYED_SCALE_TYPES, buildChromaticRange, keySignature,
+  SCALE_TYPES, KEYED_SCALE_TYPES, buildChromaticRange, keySignature, buildScaleInRange,
   type Pitch
 } from '$lib/music/scales';
 import { FINGERING_MIN_MIDI, FINGERING_MAX_MIDI, hasFingering } from '$lib/music/fingerings';
@@ -299,5 +299,70 @@ describe('keySignature', () => {
         }
       }
     }
+  });
+});
+
+describe('buildScaleInRange', () => {
+  const C = { letter: 0, alter: 0 }, A = { letter: 5, alter: 0 }, Eb = { letter: 2, alter: -1 };
+  const midis = (run: { notes: Pitch[] }) => run.notes.map(toMidi);
+
+  it('runs every scale note inside the range, up and back, starting off the tonic', () => {
+    const run = buildScaleInRange(C, 'major', 64, 79);               // E4 .. G5
+    expect(names(run.notes.slice(0, run.turnaround + 1)))
+      .toEqual(['E', 'F', 'G', 'A', 'B', 'C', 'D', 'E', 'F', 'G']);
+    expect(midis(run)[run.turnaround]).toBe(79);
+    expect(midis(run)[run.notes.length - 1]).toBe(64);
+  });
+
+  it('snaps to the nearest scale notes inside a range whose ends are not in the scale', () => {
+    const run = buildScaleInRange(C, 'major', 61, 78);               // C#4 .. F#5
+    expect(midis(run)[0]).toBe(62);                                   // D4
+    expect(midis(run)[run.turnaround]).toBe(77);                      // F5
+  });
+
+  it('never leaves the range and moves strictly up then strictly down', () => {
+    for (const type of ['major', 'natural-minor', 'harmonic-minor', 'melodic-minor', 'chromatic'] as const) {
+      const run = buildScaleInRange(Eb, type, 60, 86);
+      const m = midis(run);
+      for (const v of m) { expect(v).toBeGreaterThanOrEqual(60); expect(v).toBeLessThanOrEqual(86); }
+      for (let i = 1; i <= run.turnaround; i++) expect(m[i], `${type} up ${i}`).toBeGreaterThan(m[i - 1]);
+      for (let i = run.turnaround + 1; i < m.length; i++) expect(m[i], `${type} down ${i}`).toBeLessThan(m[i - 1]);
+    }
+  });
+
+  it('keeps the key spelling', () => {
+    const run = buildScaleInRange(Eb, 'major', 65, 77);               // F4 .. F5 in Eb major
+    expect(names(run.notes.slice(0, run.turnaround + 1)))
+      .toEqual(['F', 'G', 'A\u266D', 'B\u266D', 'C', 'D', 'E\u266D', 'F']);
+  });
+
+  it('keeps melodic minor raised going up and natural coming down', () => {
+    const run = buildScaleInRange(C, 'melodic-minor', 60, 72);
+    expect(names(run.notes.slice(0, run.turnaround + 1))).toEqual(['C', 'D', 'E\u266D', 'F', 'G', 'A', 'B', 'C']);
+    expect(names(run.notes.slice(run.turnaround + 1))).toEqual(['B\u266D', 'A\u266D', 'G', 'F', 'E\u266D', 'D', 'C']);
+  });
+
+  it("peaks on the descending form's note when only it reaches the top of the range", () => {
+    // Up to Bb4 in C melodic minor: the ascent has A then B natural (out of range);
+    // the descent has Bb, which is the highest note in range.
+    const run = buildScaleInRange(C, 'melodic-minor', 60, 70);
+    expect(midis(run)[run.turnaround]).toBe(70);
+    expect(names([run.notes[run.turnaround]])).toEqual(['B\u266D']);
+  });
+
+  it('reproduces the whole-octave scale when the range is exactly one octave from the tonic', () => {
+    expect(midis(buildScaleInRange(A, 'harmonic-minor', 69, 81))).toEqual(midis(buildScale({ ...A, octave: 4 }, 'harmonic-minor', 1)));
+  });
+
+  it('covers the whole instrument for a full-range run', () => {
+    const run = buildScaleInRange(C, 'major', FINGERING_MIN_MIDI, FINGERING_MAX_MIDI);
+    expect(midis(run)[0]).toBe(59);                                   // B3 — the lowest C-major note on the oboe
+    expect(midis(run)[run.turnaround]).toBe(93);                      // A6
+    for (const p of run.notes) expect(hasFingering(toMidi(p))).toBe(true);
+  });
+
+  it('comes back empty or as a single note when the range is too narrow for a run', () => {
+    expect(buildScaleInRange(C, 'major', 61, 61).notes).toHaveLength(0); // C#4 alone isn't in C major
+    expect(buildScaleInRange(C, 'major', 61, 62).notes).toHaveLength(1); // only D4
   });
 });

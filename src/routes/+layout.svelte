@@ -1,5 +1,6 @@
 <script lang="ts">
   import Nav from '$lib/components/Nav.svelte';
+  import { asset } from '$app/paths';
   import '../app.css';
 
   let { children } = $props();
@@ -8,7 +9,7 @@
 <div class="app">
   <div class="top-bar">
     <header class="inner">
-      <span class="brand">Reed Debugger</span>
+      <span class="brand"><img class="brand-icon" src={asset('/favicon.svg')} alt="" width="26" height="26" />Oboe Tool Kit</span>
       <a class="github-link" href="https://github.com/yuefu-jiang/Oboe-Reed-Debugger"
         target="_blank" rel="noopener noreferrer" aria-label="View source on GitHub">
         <svg viewBox="0 0 16 16" width="22" height="22" fill="currentColor" aria-hidden="true">
@@ -32,7 +33,8 @@
   .inner { max-width: 900px; margin: 0 auto; padding-left: 1.5rem; padding-right: 1.5rem; }
   .top-bar { border-bottom: 1px solid #222; }
   header { display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; padding-bottom: 0.75rem; }
-  .brand { font-weight: bold; font-size: 1.1rem; }
+  .brand { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: bold; font-size: 1.1rem; }
+  .brand-icon { display: block; flex-shrink: 0; }
   .github-link { display: flex; align-items: center; color: #aaa; transition: color 0.15s; }
   .github-link:hover { color: white; }
   .nav-bar { border-bottom: 1px solid #333; }

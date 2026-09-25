@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import {
-    KEYED_SCALE_TYPES, buildScale, buildChromaticRange, keySignature, lowestTonic, maxOctaves, pitchName, tonicLabel, tonicsFor, toMidi,
+    KEYED_SCALE_TYPES, buildScale, buildScaleInRange, keySignature, lowestTonic, maxOctaves, pitchName, tonicLabel, tonicsFor, toMidi,
     type ScaleTypeId
   } from '$lib/music/scales';
   import {
@@ -29,15 +29,19 @@
   // octaves — the whole practical range — without needing a key.
   let tonicPc = $derived(isChromatic ? 0 : (keyChoice as number));
   let activeType = $derived<ScaleTypeId>(isChromatic ? 'chromatic' : typeId);
-  // Whole octaves, or — chromatic only — every note the instrument has.
-  const FULL = 'full';
-  let octaves = $state<number | typeof FULL>(1);
+  // How much of the instrument the run covers: whole octaves from the tonic,
+  // every note the oboe has, or a span the player picks note by note.
+  type RangeChoice = 1 | 2 | 'full' | 'custom';
+  let range = $state<RangeChoice>(1);
+  let customLow = $state(60);   // C4
+  let customHigh = $state(84);  // C6
   let bpm = $state(80);
   let beatsPerNote = $state(1);
   let running = $state(false);
   let noteIndex = $state(0);
   let beatInNote = $state(0);
-  let micOn = $state(false);
+  let tunerOn = $state(false);
+  let tunerError = $state('');
 
   // Beats since the run started, owned here rather than read back off the
   // metronome: the engine's own counter resets each measure, and a measure is
@@ -56,14 +60,41 @@
   let availableOctaves = $derived(
     maxOctaves(tonics[tonicPc], FINGERING_MIN_MIDI, FINGERING_MAX_MIDI)
   );
-  let fullRange = $derived(isChromatic && octaves === FULL);
-  let effectiveOctaves = $derived(Math.min(octaves === FULL ? 2 : octaves, availableOctaves));
-
-  let run = $derived(
-    fullRange
-      ? buildChromaticRange(FINGERING_MIN_MIDI, FINGERING_MAX_MIDI)
-      : buildScale(tonic, activeType, effectiveOctaves)
+  let octaveRun = $derived(buildScale(tonic, activeType, Math.min(range === 2 ? 2 : 1, availableOctaves)));
+  let rangedRun = $derived(
+    range === 'full' ? buildScaleInRange(tonics[tonicPc], activeType, FINGERING_MIN_MIDI, FINGERING_MAX_MIDI)
+      : range === 'custom' ? buildScaleInRange(tonics[tonicPc], activeType, customLow, customHigh)
+      : null
   );
+  // A custom span can be too narrow to hold two notes of the scale; the run
+  // falls back to one octave and says so rather than playing a single note.
+  let tooNarrow = $derived(rangedRun !== null && rangedRun.notes.length < 2);
+  let run = $derived(rangedRun && !tooNarrow ? rangedRun : octaveRun);
+
+  // Every charted note, for the Low / High pickers. Spelled neutrally — these
+  // name a span of the instrument, not notes of the key.
+  const PICKER_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+  const rangeNotes = Array.from({ length: FINGERING_MAX_MIDI - FINGERING_MIN_MIDI + 1 }, (_, i) => {
+    const midi = FINGERING_MIN_MIDI + i;
+    return { midi, label: `${PICKER_NAMES[midi % 12]}${Math.floor(midi / 12) - 1}` };
+  });
+  const noteLabel = (midi: number) => rangeNotes.find((n) => n.midi === midi)?.label ?? String(midi);
+
+  // Switching to Custom starts from the span that was just playing, so the
+  // pickers open on something familiar instead of an arbitrary default.
+  let prevRange: RangeChoice = 1;
+  function onRangeChange() {
+    if (range === 'custom' && prevRange !== 'custom') {
+      const basis = prevRange === 'full'
+        ? buildScaleInRange(tonics[tonicPc], activeType, FINGERING_MIN_MIDI, FINGERING_MAX_MIDI)
+        : buildScale(tonic, activeType, Math.min(prevRange === 2 ? 2 : 1, availableOctaves));
+      const m = basis.notes.map(toMidi);
+      customLow = Math.min(...m);
+      customHigh = Math.max(...m);
+    }
+    prevRange = range;
+    onScaleChange();
+  }
   // A click already queued against the previous scale's measure length can
   // land one beat past the end of a freshly shortened run, so every read of
   // the position goes through the clamped index.
@@ -76,7 +107,22 @@
   // which is what "not pinned" means.
   let pins = $state<Pins>({});
   let peek = $state<number | null>(null);
-  onMount(() => { pins = loadPins(); });
+  onMount(() => { pins = loadPins(); showFingering = loadShowFingering(); });
+
+  // Whether the fingering chart (and its alternate/pin controls) is shown. A
+  // per-player preference, so it's remembered locally; the page works the same
+  // if storage is unavailable.
+  const SHOW_FINGERING_KEY = 'obt.showFingering';
+  let showFingering = $state(true);
+
+  function loadShowFingering(): boolean {
+    try { return localStorage.getItem(SHOW_FINGERING_KEY) !== 'false'; } catch { return true; }
+  }
+
+  function toggleFingering() {
+    showFingering = !showFingering;
+    try { localStorage.setItem(SHOW_FINGERING_KEY, String(showFingering)); } catch { /* storage unavailable */ }
+  }
 
   let options = $derived(fingeringsFor(currentMidi));
   let pinnedIndex = $derived(options.findIndex((f) => f.name === pins[currentMidi]));
@@ -143,9 +189,6 @@
   // be re-seeded rather than nudged — and the old position no longer refers to
   // the same note, so it goes back to the tonic.
   function onScaleChange() {
-    // Full range only means something for chromatic; leaving chromatic takes
-    // the widest keyed setting instead of silently dropping to one octave.
-    if (octaves === FULL && !isChromatic) octaves = 2;
     noteIndex = 0;
     peek = null;
     if (running) { stopPlayback(); startPlayback(); }
@@ -171,9 +214,16 @@
     if (running) setMetronomeBpm(bpm);
   }
 
-  async function toggleMic() {
-    if (micOn) { stopListening(); micOn = false; }
-    else { await startListening(); micOn = true; }
+  async function toggleTuner() {
+    if (tunerOn) { stopListening(); tunerOn = false; return; }
+    tunerError = '';
+    try {
+      await startListening();
+      tunerOn = true;
+    } catch {
+      // Permission denied or no input device — say so instead of silently doing nothing.
+      tunerError = 'Microphone unavailable — check your browser’s mic permission.';
+    }
   }
 
   onDestroy(() => { stopMetronome(); stopListening(); });
@@ -182,7 +232,7 @@
 <!-- The fingering chart is a tall portrait drawing, so it runs alongside the
      controls rather than under them: stacking the two would push the staff and
      tuner below the fold on a laptop screen. -->
-<div class="layout">
+<div class="layout" class:no-chart={!showFingering}>
   <div class="main">
     <p class="hint">Pick a key, tempo and note length, then play along — the staff advances on the click. Click any note to start from there.</p>
 
@@ -208,13 +258,12 @@
       </label>
 
       <label>
-        <span class="label">Octaves</span>
-        <select bind:value={octaves} onchange={onScaleChange}>
-          <option value={1}>1</option>
-          <option value={2} disabled={availableOctaves < 2}>2</option>
-          {#if isChromatic}
-            <option value={FULL}>Full range</option>
-          {/if}
+        <span class="label">Range</span>
+        <select bind:value={range} onchange={onRangeChange}>
+          <option value={1}>1 octave</option>
+          <option value={2} disabled={availableOctaves < 2}>2 octaves</option>
+          <option value="full">Full range</option>
+          <option value="custom">Custom…</option>
         </select>
       </label>
 
@@ -234,14 +283,52 @@
 
       <button class="toggle" onclick={toggle}>{running ? '■ Stop' : '▶ Start'}</button>
 
-      <button class="mic" class:on={micOn} onclick={toggleMic}
-        title="Audio is analyzed in your browser and never uploaded">
-        {micOn ? 'Mic on' : 'Start Mic'}
+      <button class="tuner-btn" class:on={tunerOn} onclick={toggleTuner} aria-pressed={tunerOn}
+        title="Uses your microphone. Audio is analyzed in your browser and never uploaded.">
+        Tuner
       </button>
+
+      <button class="chart-btn" class:on={showFingering} onclick={toggleFingering} aria-pressed={showFingering}
+        title="Show or hide the fingering chart">
+        Fingering
+      </button>
+
+      {#if range === 'custom'}
+        <label>
+          <span class="label">Low</span>
+          <select bind:value={customLow} onchange={onScaleChange}>
+            {#each rangeNotes as n (n.midi)}
+              <option value={n.midi} disabled={n.midi >= customHigh}>{n.label}</option>
+            {/each}
+          </select>
+        </label>
+        <label>
+          <span class="label">High</span>
+          <select bind:value={customHigh} onchange={onScaleChange}>
+            {#each rangeNotes as n (n.midi)}
+              <option value={n.midi} disabled={n.midi <= customLow}>{n.label}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
     </div>
 
-    {#if octaves === 2 && availableOctaves < 2 && !isChromatic}
+    {#if tooNarrow}
+      <p class="warn">Fewer than two notes of {keyLabel} fall between {noteLabel(customLow)} and {noteLabel(customHigh)} — widen the range. Playing one octave for now.</p>
+    {/if}
+    {#if range === 2 && availableOctaves < 2 && !isChromatic}
       <p class="warn">Two octaves of {keyLabel} would run past the oboe's range — playing one octave.</p>
+    {/if}
+    {#if tunerError}
+      <p class="warn">{tunerError}</p>
+    {/if}
+
+    <!-- Above the staff and sticky, so a long run (full-range chromatic wraps
+         onto four lines) can never push it off screen. -->
+    {#if tunerOn}
+      <div class="tuner-strip">
+        <MiniTuner pitch={$pitchStore} level={$levelStore} targetMidi={currentMidi} running />
+      </div>
     {/if}
 
     <div class="now">
@@ -259,14 +346,9 @@
 
     <ScaleStaff notes={run.notes} current={position} onselect={selectNote} follow={running} keySignature={signature} />
 
-    <div class="tuner-row">
-      <MiniTuner pitch={$pitchStore} level={$levelStore} targetMidi={currentMidi} running={micOn} />
-      {#if !micOn}
-        <p class="mic-note">Mic audio is analyzed in your browser and never uploaded.</p>
-      {/if}
-    </div>
   </div>
 
+  {#if showFingering}
   <aside class="fingering">
     <FingeringChart keys={currentKeys} />
 
@@ -299,6 +381,7 @@
       {/if}
     </p>
   </aside>
+  {/if}
 </div>
 
 <style>
@@ -314,6 +397,8 @@
     gap: 1.25rem;
     align-items: start;
   }
+
+  .layout.no-chart { grid-template-columns: minmax(0, 1fr); }
 
   .main { display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; }
   .hint { color: #888; font-size: 0.9rem; }
@@ -347,19 +432,22 @@
     padding: 0.4rem 0.5rem; font-size: 0.95rem; background: #1a1a1a; color: #eee;
     border: 1px solid #444; border-radius: 4px; width: 100%;
   }
-  .toggle, .mic {
+  .toggle, .tuner-btn, .chart-btn {
     padding: 0.45rem 1rem; font-size: 0.95rem; cursor: pointer; white-space: nowrap;
     background: #264653; border: none; color: #eee; border-radius: 4px;
   }
-  .mic { background: #2f2f2f; }
-  .mic.on { background: #2a9d8f; }
+  .tuner-btn, .chart-btn { background: #2f2f2f; }
+  .tuner-btn.on, .chart-btn.on { background: #2a9d8f; }
 
   .now { display: flex; align-items: baseline; gap: 0.9rem; flex-wrap: wrap; color: #777; font-size: 0.8rem; }
   .now-note { font-size: 1.9rem; font-weight: bold; color: #2a9d8f; line-height: 1; }
   .dir { color: #999; }
 
-  .tuner-row { display: flex; flex-direction: column; gap: 0.4rem; }
-  .mic-note { color: #666; font-size: 0.75rem; }
+  .tuner-strip {
+    position: sticky; top: calc(env(safe-area-inset-top, 0px) + 0.5rem); z-index: 2;
+    /* Opaque page-coloured backing so the staff scrolling past doesn't show through the gaps. */
+    background: #111; box-shadow: 0 0 0 0.5rem #111;
+  }
 
   .fingering { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: 0.4rem; --chart-max-height: var(--chart-height); }
   .keys { color: #777; font-size: 0.7rem; line-height: 1.5; }

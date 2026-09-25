@@ -150,7 +150,7 @@
   .note-name { font-size: 10px; fill: #666; font-family: sans-serif; }
   .halo { fill: #2a9d8f; opacity: 0.22; }
 
-  .note { cursor: pointer; outline: none; }
+  .note { cursor: pointer; outline: none; scroll-margin-top: 6rem; scroll-margin-bottom: 1rem; }
   .hit { fill: #fff; fill-opacity: 0; pointer-events: all; transition: fill-opacity 0.1s; }
   .note:hover .hit { fill-opacity: 0.05; }
   .note:focus-visible .hit { fill: #2a9d8f; fill-opacity: 0.16; stroke: #2a9d8f; stroke-width: 1; }
