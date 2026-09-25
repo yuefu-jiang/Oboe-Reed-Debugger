@@ -17,6 +17,15 @@ export function nextBeatIndex(current: number, beatsPerMeasure: number): number 
   return (current + 1) % beatsPerMeasure;
 }
 
+// Where the beat counter picks up when a run starts somewhere other than its
+// beginning — the Scale Practice view starts from whichever note is
+// highlighted, and the accent has to stay on the same beat of the measure it
+// would have landed on had the run played from the top.
+export function initialBeat(startBeat: number, beatsPerMeasure: number): number {
+  if (beatsPerMeasure < 1) return 0;
+  return ((Math.trunc(startBeat) % beatsPerMeasure) + beatsPerMeasure) % beatsPerMeasure;
+}
+
 // Clamps free-typed BPM input to a sane, whole-number range. Falls back to
 // `fallback` for non-finite input (e.g. an emptied number field), rather than
 // letting NaN/Infinity reach the scheduler and produce a broken interval.
@@ -39,13 +48,13 @@ class Metronome {
   private onBeat: ((beat: number) => void) | null = null;
   running = false;
 
-  start(bpm: number, beatsPerMeasure: number, onBeat: (beat: number) => void): void {
+  start(bpm: number, beatsPerMeasure: number, onBeat: (beat: number) => void, startBeat = 0): void {
     if (!browser || this.running) return;
     this.ctx = new AudioContext();
     this.bpm = bpm;
     this.beatsPerMeasure = beatsPerMeasure;
     this.onBeat = onBeat;
-    this.currentBeat = 0;
+    this.currentBeat = initialBeat(startBeat, beatsPerMeasure);
     this.nextNoteTime = this.ctx.currentTime + 0.05;
     this.running = true;
     this.scheduler();
@@ -105,8 +114,10 @@ class Metronome {
 
 const metronome = new Metronome();
 
-export function startMetronome(bpm: number, beatsPerMeasure: number, onBeat: (beat: number) => void): void {
-  metronome.start(bpm, beatsPerMeasure, onBeat);
+export function startMetronome(
+  bpm: number, beatsPerMeasure: number, onBeat: (beat: number) => void, startBeat = 0
+): void {
+  metronome.start(bpm, beatsPerMeasure, onBeat, startBeat);
 }
 
 export function stopMetronome(): void {

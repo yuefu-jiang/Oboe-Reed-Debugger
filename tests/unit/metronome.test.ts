@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { secondsPerBeat, nextBeatIndex, clampBpm, MIN_BPM, MAX_BPM, BEATS_OPTIONS } from '$lib/audio/metronome';
+import { secondsPerBeat, nextBeatIndex, clampBpm, initialBeat, MIN_BPM, MAX_BPM, BEATS_OPTIONS } from '$lib/audio/metronome';
 
 describe('secondsPerBeat', () => {
   it('converts 60 BPM to exactly 1 second per beat', () => {
@@ -61,5 +61,47 @@ describe('BEATS_OPTIONS', () => {
     expect(BEATS_OPTIONS).toContain(2);
     expect(BEATS_OPTIONS).toContain(3);
     expect(BEATS_OPTIONS).toContain(4);
+  });
+});
+
+describe('initialBeat', () => {
+  it('starts at the downbeat by default', () => {
+    expect(initialBeat(0, 4)).toBe(0);
+  });
+
+  it('keeps a mid-run start on the beat of the measure it belongs to', () => {
+    expect(initialBeat(6, 4)).toBe(2);
+    expect(initialBeat(8, 4)).toBe(0);
+  });
+
+  it('wraps a start beyond one measure', () => {
+    expect(initialBeat(15, 4)).toBe(3);
+  });
+
+  it('never returns a beat outside the measure', () => {
+    for (const measure of BEATS_OPTIONS) {
+      for (let start = -20; start <= 40; start++) {
+        const beat = initialBeat(start, measure);
+        expect(beat).toBeGreaterThanOrEqual(0);
+        expect(beat).toBeLessThan(measure);
+      }
+    }
+  });
+
+  it('handles a negative start without going negative', () => {
+    expect(initialBeat(-1, 4)).toBe(3);
+  });
+
+  it('falls back to zero rather than dividing by a degenerate measure', () => {
+    expect(initialBeat(5, 0)).toBe(0);
+    expect(initialBeat(5, -3)).toBe(0);
+  });
+
+  it('agrees with counting forward from the top of the run', () => {
+    // Stepping nextBeatIndex from 0 must land where initialBeat jumps to.
+    const measure = 4;
+    let beat = 0;
+    for (let i = 0; i < 11; i++) beat = nextBeatIndex(beat, measure);
+    expect(beat).toBe(initialBeat(11, measure));
   });
 });
